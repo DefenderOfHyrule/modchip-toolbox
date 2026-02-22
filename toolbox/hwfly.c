@@ -349,7 +349,7 @@ void hwfly_update_fw()
 
 	gfx_printf("Getting HWFLY FW version...\n");
 
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	sd_mount();
 	bool force_update = f_stat(".force_update", NULL) == FR_OK;
 
@@ -540,7 +540,7 @@ void hwfly_dump_fw()
 {
 	gfx_printf("Entering DFU mode...\n");
 
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 
 	// set HWFLY in DFU mode if not already
 	if (hwfly_dfu_ping())
@@ -604,14 +604,14 @@ out:
 
 void hwfly_enter_deep_sleep()
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	hwfly_enable_deep_sleep();
 	sdmmc_end(&emmc_sdmmc);
 }
 
 uint32_t hwfly_reset_train_data()
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	uint32_t res = hwfly_train_data_reset();
 	sdmmc_end(&emmc_sdmmc);
 
@@ -620,7 +620,7 @@ uint32_t hwfly_reset_train_data()
 
 uint32_t hwfly_get_train_data(uint32_t *load_result, config_t *cfg)
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	uint32_t res = hwfly_train_data_get(load_result, cfg);
 	sdmmc_end(&emmc_sdmmc);
 	return res;
@@ -628,7 +628,7 @@ uint32_t hwfly_get_train_data(uint32_t *load_result, config_t *cfg)
 
 uint32_t hwfly_set_train_data(config_t *cfg)
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	uint32_t res = hwfly_train_data_set(cfg);
 	sdmmc_end(&emmc_sdmmc);
 	return res;
@@ -636,7 +636,7 @@ uint32_t hwfly_set_train_data(config_t *cfg)
 
 uint32_t hwfly_session_info(uint8_t *fmt, session_info_t *si)
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	uint32_t res = hwfly_session_info_get(fmt, si);
 	sdmmc_end(&emmc_sdmmc);
 	return res;
@@ -644,7 +644,7 @@ uint32_t hwfly_session_info(uint8_t *fmt, session_info_t *si)
 
 void hwfly_exit_dfu_and_launch_firmware()
 {
-	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID, SDMMC_POWER_SAVE_DISABLE);
+	sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_POWER_1_8, SDMMC_BUS_WIDTH_1, SDHCI_TIMING_MMC_ID);
 	// check if in DFU mode and exit
 	if (!hwfly_dfu_ping())
 		hwfly_exit_dfu();

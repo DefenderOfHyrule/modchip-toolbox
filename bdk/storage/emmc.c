@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018 naehrwert
- * Copyright (c) 2019-2022 CTCaer
+ * Copyright (c) 2019-2024 CTCaer
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -61,6 +61,8 @@ u32 emmc_get_mode()
 	return emmc_mode;
 }
 
+void emmc_end() { sdmmc_storage_end(&emmc_storage); }
+
 int emmc_init_retry(bool power_cycle)
 {
 	u32 bus_width = SDMMC_BUS_WIDTH_8;
@@ -70,7 +72,7 @@ int emmc_init_retry(bool power_cycle)
 	if (power_cycle)
 	{
 		emmc_mode--;
-		sdmmc_storage_end(&emmc_storage);
+		emmc_end();
 	}
 
 	// Get init parameters.
@@ -105,7 +107,7 @@ bool emmc_initialize(bool power_cycle)
 		emmc_mode = EMMC_MMC_HS400;
 
 	if (power_cycle)
-		sdmmc_storage_end(&emmc_storage);
+		emmc_end();
 
 	int res = !emmc_init_retry(false);
 
@@ -124,14 +126,16 @@ bool emmc_initialize(bool power_cycle)
 		}
 	}
 
-	sdmmc_storage_end(&emmc_storage);
+	emmc_end();
 
 	return false;
 }
 
+int emmc_set_partition(u32 partition) { return sdmmc_storage_set_mmc_partition(&emmc_storage, partition); }
+
 void emmc_gpt_parse(link_t *gpt)
 {
-	gpt_t *gpt_buf = (gpt_t *)calloc(GPT_NUM_BLOCKS, EMMC_BLOCKSIZE);
+	gpt_t *gpt_buf = (gpt_t *)zalloc(GPT_NUM_BLOCKS * EMMC_BLOCKSIZE);
 
 #ifdef BDK_EMUMMC_ENABLE
 	emummc_storage_read(GPT_FIRST_LBA, GPT_NUM_BLOCKS, gpt_buf);
@@ -145,15 +149,15 @@ void emmc_gpt_parse(link_t *gpt)
 
 	for (u32 i = 0; i < gpt_buf->header.num_part_ents; i++)
 	{
-		emmc_part_t *part = (emmc_part_t *)calloc(sizeof(emmc_part_t), 1);
+		emmc_part_t *part = (emmc_part_t *)zalloc(sizeof(emmc_part_t));
 
 		if (gpt_buf->entries[i].lba_start < gpt_buf->header.first_use_lba)
 			continue;
 
-		part->index = i;
+		part->index     = i;
 		part->lba_start = gpt_buf->entries[i].lba_start;
-		part->lba_end = gpt_buf->entries[i].lba_end;
-		part->attrs = gpt_buf->entries[i].attrs;
+		part->lba_end   = gpt_buf->entries[i].lba_end;
+		part->attrs     = gpt_buf->entries[i].attrs;
 
 		// ASCII conversion. Copy only the LSByte of the UTF-16LE name.
 		for (u32 j = 0; j < 36; j++)

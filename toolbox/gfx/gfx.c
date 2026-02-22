@@ -19,6 +19,21 @@
 #include <string.h>
 #include "gfx.h"
 
+/*
+ * Software 90 degree clockwise rotation for landscape display.
+ *
+ * The physical framebuffer is always portrait: 720 wide x 1280 tall.
+ * We present a logical landscape canvas: 1280 wide x 720 tall.
+ *
+ * Mapping logical (lx, ly) -> physical index:
+ *   physical_x = ly
+ *   physical_y = 1279 - lx
+ *   index = physical_x + physical_y * 720
+ *         = ly + (1279 - lx) * 720
+ */
+#define FB_IDX(lx, ly) ((ly) + (1279 - (lx)) * 720)
+#define FB_PIX(lx, ly) gfx_ctxt.fb[FB_IDX(lx, ly)]
+
 // Global gfx console and context.
 gfx_ctxt_t gfx_ctxt;
 gfx_con_t gfx_con;
@@ -125,18 +140,24 @@ static const u8 _gfx_font[] = {
 
 void gfx_clear_grey(u8 color)
 {
-	memset(gfx_ctxt.fb, color, gfx_ctxt.width * gfx_ctxt.height * 4);
+	memset(gfx_ctxt.fb, color, 720 * 1280 * 4);
 }
 
-void gfx_clear_partial_grey(u8 color, u32 pos_x, u32 height)
+void gfx_clear_partial_grey(u8 color, u32 pos_y, u32 height)
 {
-	memset(gfx_ctxt.fb + pos_x * gfx_ctxt.stride, color, height * 4 * gfx_ctxt.stride);
+	// pos_y/height are in logical Y (landscape vertical, 0..719).
+	// Clears a full-width horizontal band across all 1280 logical X columns.
+	u32 packed = color | (color << 8) | (color << 16) | ((u32)color << 24);
+	for (u32 ly = pos_y; ly < pos_y + height; ly++)
+		for (u32 lx = 0; lx < 1280; lx++)
+			FB_PIX(lx, ly) = packed;
 }
 
 void gfx_clear_color(u32 color)
 {
-	for (u32 i = 0; i < gfx_ctxt.width * gfx_ctxt.height; i++)
-		gfx_ctxt.fb[i] = color;
+	for (u32 lx = 0; lx < 1280; lx++)
+		for (u32 ly = 0; ly < 720; ly++)
+			FB_PIX(lx, ly) = color;
 }
 
 void gfx_init_ctxt(u32 *fb, u32 width, u32 height, u32 stride)
@@ -184,43 +205,29 @@ void gfx_con_setpos(u32 x, u32 y)
 
 void gfx_putc(char c)
 {
-	// Duplicate code for performance reasons.
 	switch (gfx_con.fntsz)
 	{
 	case 16:
 		if (c >= 32 && c <= 126)
 		{
 			u8 *cbuf = (u8 *)&_gfx_font[8 * (c - 32)];
-			u32 *fb = gfx_ctxt.fb + gfx_con.x + gfx_con.y * gfx_ctxt.stride;
-
-			for (u32 i = 0; i < 16; i += 2)
+			// Each font byte = 1 row of 8 pixels, drawn 2x2.
+			// 8 rows * 2 = 16px tall, 8 cols * 2 = 16px wide.
+			for (u32 row = 0; row < 8; row++)
 			{
-				u8 v = *cbuf;
-				for (u32 k = 0; k < 2; k++)
+				u8 v = cbuf[row];
+				for (u32 col = 0; col < 8; col++)
 				{
-					for (u32 j = 0; j < 8; j++)
+					u32 color = (v & 1) ? gfx_con.fgcol : (gfx_con.fillbg ? gfx_con.bgcol : 0);
+					if ((v & 1) || gfx_con.fillbg)
 					{
-						if (v & 1)
-						{
-							*fb = gfx_con.fgcol;
-							fb++;
-							*fb = gfx_con.fgcol;
-						}
-						else if (gfx_con.fillbg)
-						{
-							*fb = gfx_con.bgcol;
-							fb++;
-							*fb = gfx_con.bgcol;
-						}
-						else
-							fb++;
-						v >>= 1;
-						fb++;
+						FB_PIX(gfx_con.x + col * 2,     gfx_con.y + row * 2)     = color;
+						FB_PIX(gfx_con.x + col * 2 + 1, gfx_con.y + row * 2)     = color;
+						FB_PIX(gfx_con.x + col * 2,     gfx_con.y + row * 2 + 1) = color;
+						FB_PIX(gfx_con.x + col * 2 + 1, gfx_con.y + row * 2 + 1) = color;
 					}
-					fb += gfx_ctxt.stride - 16;
-					v = *cbuf;
+					v >>= 1;
 				}
-				cbuf++;
 			}
 			gfx_con.x += 16;
 		}
@@ -237,20 +244,17 @@ void gfx_putc(char c)
 		if (c >= 32 && c <= 126)
 		{
 			u8 *cbuf = (u8 *)&_gfx_font[8 * (c - 32)];
-			u32 *fb = gfx_ctxt.fb + gfx_con.x + gfx_con.y * gfx_ctxt.stride;
-			for (u32 i = 0; i < 8; i++)
+			for (u32 row = 0; row < 8; row++)
 			{
-				u8 v = *cbuf++;
-				for (u32 j = 0; j < 8; j++)
+				u8 v = cbuf[row];
+				for (u32 col = 0; col < 8; col++)
 				{
 					if (v & 1)
-						*fb = gfx_con.fgcol;
+						FB_PIX(gfx_con.x + col, gfx_con.y + row) = gfx_con.fgcol;
 					else if (gfx_con.fillbg)
-						*fb = gfx_con.bgcol;
+						FB_PIX(gfx_con.x + col, gfx_con.y + row) = gfx_con.bgcol;
 					v >>= 1;
-					fb++;
 				}
-				fb += gfx_ctxt.stride - 8;
 			}
 			gfx_con.x += 8;
 		}
@@ -461,7 +465,7 @@ static int abs(int x)
 
 void gfx_set_pixel(u32 x, u32 y, u32 color)
 {
-	gfx_ctxt.fb[x + y * gfx_ctxt.stride] = color;
+	FB_PIX(x, y) = color;
 }
 
 void gfx_line(int x0, int y0, int x1, int y1, u32 color)
@@ -496,12 +500,12 @@ void gfx_set_rect_grey(const u8 *buf, u32 size_x, u32 size_y, u32 pos_x, u32 pos
 	{
 		for (u32 x = pos_x; x < (pos_x + size_x); x++)
 		{
-			memset(&gfx_ctxt.fb[x + y*gfx_ctxt.stride], buf[pos], 4);
+			u8 v = buf[pos];
+			FB_PIX(x, y) = v | (v << 8) | (v << 16) | (0xFF << 24);
 			pos++;
 		}
 	}
 }
-
 
 void gfx_set_rect_rgb(const u8 *buf, u32 size_x, u32 size_y, u32 pos_x, u32 pos_y)
 {
@@ -510,8 +514,8 @@ void gfx_set_rect_rgb(const u8 *buf, u32 size_x, u32 size_y, u32 pos_x, u32 pos_
 	{
 		for (u32 x = pos_x; x < (pos_x + size_x); x++)
 		{
-			gfx_ctxt.fb[x + y * gfx_ctxt.stride] = buf[pos + 2] | (buf[pos + 1] << 8) | (buf[pos] << 16);
-			pos+=3;
+			FB_PIX(x, y) = buf[pos + 2] | (buf[pos + 1] << 8) | (buf[pos] << 16);
+			pos += 3;
 		}
 	}
 }
@@ -521,14 +525,12 @@ void gfx_set_rect_argb(const u32 *buf, u32 size_x, u32 size_y, u32 pos_x, u32 po
 	u32 *ptr = (u32 *)buf;
 	for (u32 y = pos_y; y < (pos_y + size_y); y++)
 		for (u32 x = pos_x; x < (pos_x + size_x); x++)
-			gfx_ctxt.fb[x + y * gfx_ctxt.stride] = *ptr++;
+			FB_PIX(x, y) = *ptr++;
 }
 
 void gfx_render_bmp_argb(const u32 *buf, u32 size_x, u32 size_y, u32 pos_x, u32 pos_y)
 {
 	for (u32 y = pos_y; y < (pos_y + size_y); y++)
-	{
 		for (u32 x = pos_x; x < (pos_x + size_x); x++)
-			gfx_ctxt.fb[x + y * gfx_ctxt.stride] = buf[(size_y + pos_y - 1 - y ) * size_x + x - pos_x];
-	}
+			FB_PIX(x, y) = buf[(size_y + pos_y - 1 - y) * size_x + x - pos_x];
 }

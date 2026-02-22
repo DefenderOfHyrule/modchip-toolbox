@@ -19,9 +19,85 @@
 
 #include "tui.h"
 #include "../config.h"
+#include <input/joycon.h>
 #include <string.h>
 
 extern hekate_config h_cfg;
+
+/*
+ * replacement for btn_wait() that also reads joycon input.
+ * maps joycon buttons onto the existing BTN_* instances so all menu logic
+ * needs no changes.
+ *
+ * mapping:
+ *   D-pad up / left / ZL  -> BTN_VOL_UP
+ *   D-pad down / right / ZR -> BTN_VOL_DOWN
+ *   A / B / + / -           -> BTN_POWER
+ */
+u8 btn_wait_with_jc()
+{
+	// current hardware button state to detect release.
+	u8 prev_hw = btn_read();
+
+	u8 hw;
+	bool pwr_held = (prev_hw & BTN_POWER) != 0;
+
+	for (u32 i = 0; i < 8; i++)
+	{
+		joycon_poll();
+		msleep(20);
+	}
+
+	do
+	{
+		hw = btn_read();
+		if (!(hw & BTN_POWER) && pwr_held)
+			pwr_held = false;
+		else if (pwr_held)
+			hw &= ~BTN_POWER;
+
+		jc_gamepad_rpt_t *jc = joycon_poll();
+		if (jc)
+		{
+			u8 jc_btns = 0;
+
+			// D-pad up/left/ZL -> VOL_UP
+			if (jc->up || jc->left || jc->zl)
+				jc_btns |= BTN_VOL_UP;
+
+			// D-pad down/right/ZR -> VOL_DOWN
+			if (jc->down || jc->right || jc->zr)
+				jc_btns |= BTN_VOL_DOWN;
+
+			// A / B / + / - -> POWER (select)
+			if (jc->a || jc->b || jc->plus || jc->minus)
+				jc_btns |= BTN_POWER;
+
+			if (jc_btns)
+			{
+				// wait for release before returning.
+				while (true)
+				{
+					msleep(20);
+					jc = joycon_poll();
+					if (!jc)
+						break;
+					bool still_held = false;
+					if ((jc_btns & BTN_VOL_UP)   && (jc->up || jc->left || jc->zl)) still_held = true;
+					if ((jc_btns & BTN_VOL_DOWN) && (jc->down || jc->right || jc->zr)) still_held = true;
+					if ((jc_btns & BTN_POWER)    && (jc->a || jc->b || jc->plus || jc->minus)) still_held = true;
+					if (!still_held)
+						break;
+				}
+				return jc_btns;
+			}
+		}
+
+		msleep(10);
+	} while (prev_hw == hw);
+
+	return hw;
+}
 
 void tui_sbar(bool force_update)
 {
@@ -41,12 +117,12 @@ void tui_sbar(bool force_update)
 	int battVoltCurr = 0;
 
 	gfx_con_getpos(&cx, &cy);
-	gfx_con_setpos(0,  1260);
+	gfx_con_setpos(0, 704);
 
 	max17050_get_property(MAX17050_RepSOC, (int *)&battPercent);
 	max17050_get_property(MAX17050_VCELL, &battVoltCurr);
 
-	gfx_clear_partial_grey(0x30, 1256, 24);
+	gfx_clear_partial_grey(0x30, 704, 16);
 	gfx_printf("%K%k Battery: %d.%d%% (%d mV) - Charge:", 0xFF303030, 0xFF888888,
 		(battPercent >> 8) & 0xFF, (battPercent & 0xFF) / 26, battVoltCurr);
 
@@ -92,7 +168,7 @@ void *tui_do_menu(menu_t *menu)
 {
 	int idx = 0, prev_idx = 0, cnt = 0x7FFFFFFF;
 
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	tui_sbar(true);
 
 	while (true)
@@ -145,7 +221,7 @@ void *tui_do_menu(menu_t *menu)
 		gfx_putc('\n');
 
 		// Indicate that functionality is only available if modchip is powered on
-		if (!strcmp(menu->caption, "Modchip Toolbox " TOOLBOX_VERSION))
+		if (!strcmp(menu->caption, "Modchip Toolbox " TOOLBOX_VERSION "] - [ BDK 6.5.1 "))
 		{
 			gfx_con_setpos(0, 205);
 			gfx_printf("  %kFor HWFLY modchips, ensure the modchip\n", 0xFF5E95BC);
@@ -155,14 +231,14 @@ void *tui_do_menu(menu_t *menu)
 			gfx_printf("  The %kgreen%k LED should be on and static.\n", 0xFF00FF00, 0xFF5E95BC);
 		}
 
-		// Print errors, help and battery status.
-		gfx_con_setpos(0, 1191);
-		gfx_printf("%k VOL: Move up/down\n PWR: Select option%k", 0xFF555555, 0xFFCCCCCC);
+		// print errors, help and battery status.
+		gfx_con_setpos(0, 672);
+		gfx_printf("%k VOL or DPAD Up/Down: Move up/down\n PWR or A/B: Select option%k", 0xFF555555, 0xFFCCCCCC);
 
 		display_backlight_brightness(h_cfg.backlight, 1000);
 
 		// Wait for user command.
-		u32 btn = btn_wait();
+		u32 btn = btn_wait_with_jc();
 
 		if (btn & BTN_VOL_DOWN && idx < (cnt - 1))
 			idx++;
@@ -204,7 +280,7 @@ void *tui_do_menu(menu_t *menu)
 				break;
 			}
 			gfx_con.fntsz = 16;
-			gfx_clear_partial_grey(0x1B, 0, 1256);
+			gfx_clear_partial_grey(0x1B, 0, 704);
 		}
 		tui_sbar(false);
 	}

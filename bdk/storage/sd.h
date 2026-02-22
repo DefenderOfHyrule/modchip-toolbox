@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018 naehrwert
- * Copyright (c) 2018-2021 CTCaer
+ * Copyright (c) 2018-2023 CTCaer
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,13 +22,19 @@
 #include <storage/sdmmc_driver.h>
 #include <libs/fatfs/ff.h>
 
+#define SD_BLOCKSIZE SDMMC_DAT_BLOCKSIZE
+
 enum
 {
 	SD_INIT_FAIL  = 0,
 	SD_1BIT_HS25  = 1,
 	SD_4BIT_HS25  = 2,
 	SD_UHS_SDR82  = 3,
-	SD_UHS_SDR104 = 4
+	SD_UHS_SDR104 = 4,
+#ifdef BDK_SDMMC_UHS_DDR200_SUPPORT
+    SD_UHS_DDR208 = 5
+#endif
+
 };
 
 enum
@@ -55,6 +61,6 @@ void sd_unmount();
 void sd_end();
 bool sd_is_gpt();
 void *sd_file_read(const char *path, u32 *fsize);
-int  sd_save_to_file(void *buf, u32 size, const char *filename);
+int  sd_save_to_file(const void *buf, u32 size, const char *filename);
 
 #endif

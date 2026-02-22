@@ -200,10 +200,10 @@ int picofly_update_fw(void)
      * validates using CRC during programming.
      */
 
-    gfx_printf("\nPress Power to flash or VOL to cancel...\n");
+    gfx_printf("\nPress Power/A/B to flash or VOL/a DPAD button to cancel...\n");
 
     msleep(500);
-    u32 btn = btn_wait();
+    u32 btn = btn_wait_with_jc();
     if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
     {
         gfx_printf("Cancelled.\n");
@@ -229,7 +229,7 @@ int picofly_update_fw(void)
      *   arg1   = ceil(fw_size / 512)
      */
     u32 size_in_sectors = (fw_size + PICOFLY_SECTOR_SZ - 1) / PICOFLY_SECTOR_SZ;
-    gfx_printf("Writing firmware update command\n(size_sectors=%d)...\n", size_in_sectors);
+    gfx_printf("Writing firmware update command (size_sectors=%d)...\n", size_in_sectors);
 
     if (_picofly_write_cmd(PICOFLY_OPCODE_FW_CMD, PICOFLY_ARG_FW_UPDATE, size_in_sectors))
         goto cleanup;

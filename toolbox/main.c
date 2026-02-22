@@ -18,6 +18,7 @@
 #include <stdlib.h>
 
 #include <bdk.h>
+#include <input/joycon.h>
 
 #include "config.h"
 #include "gfx/tui.h"
@@ -30,10 +31,11 @@
 
 hekate_config h_cfg;
 const volatile ipl_ver_meta_t __attribute__((section ("._ipl_version"))) ipl_ver = {
-	.magic = BL_MAGIC,
-	.version = (BL_VER_MJ + '0') | ((BL_VER_MN + '0') << 8) | ((BL_VER_HF + '0') << 16),
-	.rsvd0 = 0,
-	.rsvd1 = 0
+	.magic             = BL_MAGIC,
+	.version           = (BL_VER_MJ + '0') | ((BL_VER_MN + '0') << 8) | ((BL_VER_HF + '0') << 16) | ((BL_VER_RL) << 24),
+	.rcfg.rsvd_flags   = 0,
+	.rcfg.bclk_t210    = BPMP_CLK_LOWER_BOOST,
+	.rcfg.bclk_t210b01 = BPMP_CLK_DEFAULT_BOOST
 };
 
 volatile nyx_storage_t *nyx_str = (nyx_storage_t *)NYX_STORAGE_ADDR;
@@ -122,19 +124,13 @@ int launch_payload(char *path, bool clear_screen)
 		if (size < 0x30000)
 		{
 			reloc_patcher(PATCHED_RELOC_ENTRY, EXT_PAYLOAD_ADDR, ALIGN(size, 0x10));
-
-			hw_reinit_workaround(false, byte_swap_32(*(u32 *)(buf + size - sizeof(u32))));
 		}
 		else
 		{
 			reloc_patcher(PATCHED_RELOC_ENTRY, EXT_PAYLOAD_ADDR, 0x7000);
-
-			// Get coreboot seamless display magic.
-			u32 magic = 0;
-			char *magic_ptr = buf + COREBOOT_VER_OFF;
-			memcpy(&magic, magic_ptr + strlen(magic_ptr) - 4, 4);
-			hw_reinit_workaround(true, magic);
 		}
+
+		hw_deinit(false);
 
 		// Some cards (Sandisk U1), do not like a fast power cycle. Wait min 100ms.
 		sdmmc_storage_init_wait_sd();
@@ -276,38 +272,38 @@ static void _show_errors()
 		WPRINTF("Press any key...");
 
 		msleep(1000); // Guard against injection VOL+.
-		btn_wait();
+		btn_wait_with_jc();
 		msleep(500);  // Guard against force menu VOL-.
 	}
 }
 
 void fw_update()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	hwfly_update_fw();
 
 	gfx_printf("\n\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void fw_dump()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	hwfly_dump_fw();
 
 	gfx_printf("\n\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void sdloader_update()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Reading sdloader.enc on sdcard\n");
@@ -332,12 +328,12 @@ void sdloader_update()
 out:
 	gfx_printf("Press any key\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void sdloader_dump()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	int payload_size = 64 * 1024;
@@ -359,12 +355,12 @@ void sdloader_dump()
 
 	gfx_printf("Press any key\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void train_data_show()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Reading train data..\n");
@@ -372,7 +368,7 @@ void train_data_show()
 	config_t train_data;
 	if (!hwfly_get_train_data(&load_result, &train_data))
 	{
-		gfx_clear_partial_grey(0x1B, 0, 1256);
+		gfx_clear_partial_grey(0x1B, 0, 704);
 		gfx_con_setpos(0, 0);
 
 		gfx_printf("Stored train data report:\n");
@@ -403,12 +399,12 @@ void train_data_show()
 	gfx_printf("\nPress any key\n");
 
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void train_data_backup()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Reading train data.. ");
@@ -439,12 +435,12 @@ void train_data_backup()
 	gfx_printf("\nPress any key\n");
 
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void train_data_restore()
 {
-    gfx_clear_partial_grey(0x1B, 0, 1256);
+    gfx_clear_partial_grey(0x1B, 0, 704);
     gfx_con_setpos(0, 0);
 
     gfx_printf("Reading train_data.bin from SD\n");
@@ -472,12 +468,12 @@ void train_data_restore()
 	out:
 		gfx_printf("Press any key\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void train_data_reset()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Sending Reset Train Data command\n");
@@ -493,12 +489,12 @@ void train_data_reset()
 	gfx_printf("Press any key...\n");
 
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void session_info()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	uint8_t fmt;
@@ -562,12 +558,12 @@ void session_info()
 	gfx_printf("\nPress any key...\n");
 
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void deep_sleep()
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Sending Deep Sleep command\n");
@@ -577,14 +573,14 @@ void deep_sleep()
 	gfx_printf("\nPress any key...\n");
 
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 /* ---- Picofly UI handlers ----------------------------------------*/
 
 void picofly_fw_update_menu(void *param)
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Picofly Firmware Update\n\n");
@@ -598,21 +594,21 @@ void picofly_fw_update_menu(void *param)
 
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void picofly_fw_rollback_menu(void *param)
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Picofly Firmware Rollback\n\n");
 	gfx_printf("This will instruct the picofly to revert\n");
 	gfx_printf("to its previous firmware on next boot.\n\n");
-	gfx_printf("Press Power to continue or VOL to cancel...\n");
+	gfx_printf("Press Power/A/B to continue or VOL/a DPAD button to cancel...\n");
 
 	msleep(500);
-	u32 btn = btn_wait();
+	u32 btn = btn_wait_with_jc();
 	if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
 	{
 		gfx_printf("Cancelled.\n");
@@ -628,21 +624,21 @@ void picofly_fw_rollback_menu(void *param)
 out:
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void picofly_train_reset_menu(void *param)
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Picofly Training Data Reset\n\n");
 	gfx_printf("This will clear stored glitch training data.\n");
 	gfx_printf("The modchip will retrain on the next boot.\n\n");
-	gfx_printf("Press Power to continue or VOL to cancel...\n");
+	gfx_printf("Press Power/A/B to continue or VOL/a DPAD button to cancel...\n");
 
 	msleep(500);
-	u32 btn = btn_wait();
+	u32 btn = btn_wait_with_jc();
 	if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
 	{
 		gfx_printf("Cancelled.\n");
@@ -658,12 +654,12 @@ void picofly_train_reset_menu(void *param)
 out:
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void picofly_fw_info_menu(void *param)
 {
-	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_clear_partial_grey(0x1B, 0, 704);
 	gfx_con_setpos(0, 0);
 
 	gfx_printf("Picofly Firmware Info\n\n");
@@ -711,12 +707,12 @@ out:
 	sdmmc_storage_end(&emmc_storage);
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void picofly_sdloader_backup_menu(void *param)
 {
-    gfx_clear_partial_grey(0x1B, 0, 1256);
+    gfx_clear_partial_grey(0x1B, 0, 704);
     gfx_con_setpos(0, 0);
 
     gfx_printf("Picofly SD Loader Backup\n\n");
@@ -730,26 +726,26 @@ void picofly_sdloader_backup_menu(void *param)
 
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 void picofly_sdloader_restore_menu(void *param)
 {
-    gfx_clear_partial_grey(0x1B, 0, 1256);
+    gfx_clear_partial_grey(0x1B, 0, 704);
     gfx_con_setpos(0, 0);
 
     gfx_printf("Picofly SD Loader Restore\n\n");
     gfx_printf("Restores sdloader from\nsd:/picofly_sdloader.bin\n\n");
-    gfx_printf("Press Power to continue or VOL to cancel...\n");
+	gfx_printf("Press Power/A/B to continue or VOL/a DPAD button to cancel...\n");
 
     msleep(500);
-    u32 btn = btn_wait();
+    u32 btn = btn_wait_with_jc();
     if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
     {
         gfx_printf("Cancelled.\n");
         gfx_printf("\nPress any key...\n");
 		msleep(500);
-		btn_wait();
+		btn_wait_with_jc();
         return;
     }
 
@@ -766,7 +762,7 @@ void picofly_sdloader_restore_menu(void *param)
 
 	gfx_printf("\nPress any key...\n");
 	msleep(500);
-	btn_wait();
+	btn_wait_with_jc();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -835,20 +831,24 @@ ment_t ment_top[] = {
 	MDEF_END()
 };
 
-menu_t menu_top = { ment_top, "Modchip Toolbox " TOOLBOX_VERSION, 0, 0 };
+menu_t menu_top = { ment_top, "Modchip Toolbox " TOOLBOX_VERSION "] - [ BDK 6.5.1 ", 0, 0 };
 
 extern void pivot_stack(u32 stack_top);
+
 
 void ipl_main()
 {
 	// Do initial HW configuration. This is compatible with consecutive reruns without a reset.
 	hw_init();
 
+	// Initialize Joy-Con driver for menu navigation.
+	jc_init_hw();
+
 	// Pivot the stack so we have enough space.
-	pivot_stack(IPL_STACK_TOP);
+	pivot_stack(IRQ_STACK_TOP);
 
 	// Tegra/Horizon configuration goes to 0x80000000+, package2 goes to 0xA9800000, we place our heap in between.
-	heap_init(IPL_HEAP_START);
+	heap_init((void *)IPL_HEAP_START);
 
 	// Set bootloader's default configuration.
 	set_default_configuration();
@@ -860,12 +860,12 @@ void ipl_main()
 	h_cfg.errors |= !sd_mount() ? ERR_SD_BOOT_EN : 0;
 
 	// Train DRAM and switch to max frequency.
-	if (minerva_init()) //!TODO: Add Tegra210B01 support to minerva.
+	if (minerva_init((minerva_str_t *)&nyx_str->minerva)) //!TODO: Add Tegra210B01 support to minerva.
 		h_cfg.errors |= ERR_LIBSYS_MTC;
 
 	// Initialize display window, backlight and gfx console.
-	u32 *fb = display_init_framebuffer_pitch();
-	gfx_init_ctxt(fb, 720, 1280, 720);
+	u32 *fb = display_init_window_a_pitch();
+	gfx_init_ctxt(fb, 1280, 720, 1280);
 	gfx_con_init();
 
 	display_backlight_pwm_init();

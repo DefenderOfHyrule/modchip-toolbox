@@ -62,4 +62,6 @@ void tui_sbar(bool force_update);
 void tui_pbar(int x, int y, u32 val, u32 fgcol, u32 bgcol);
 void *tui_do_menu(menu_t *menu);
 
+u8 btn_wait_with_jc();
+
 #endif
