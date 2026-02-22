@@ -65,7 +65,7 @@ int picofly_restore_sdloader(void);
 #define PICOFLY_OPCODE_FW_CMD       0x6DB92148U
 
 /* firmware update / rollback arg0 values */
-#define PICOFLY_FW_START_SECTOR     2           /* BOOT0 sector where fw binary is written */
+#define PICOFLY_FW_START_SECTOR     0x1f80           /* BOOT0 sector where fw binary is written */
 #define PICOFLY_ARG_FW_UPDATE       PICOFLY_FW_START_SECTOR  /* start_block for update cmd */
 #define PICOFLY_ARG_FW_ROLLBACK     0xFFFFFFFFU
 
