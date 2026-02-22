@@ -26,6 +26,7 @@
 #include <libs/fatfs/ff.h>
 
 #include "hwfly.h"
+#include "picofly.h"
 
 hekate_config h_cfg;
 const volatile ipl_ver_meta_t __attribute__((section ("._ipl_version"))) ipl_ver = {
@@ -579,30 +580,262 @@ void deep_sleep()
 	btn_wait();
 }
 
-power_state_t STATE_POWER_OFF           = POWER_OFF_RESET;
+/* ---- Picofly UI handlers ----------------------------------------*/
 
-ment_t ment_top[] = {
-	MDEF_CAPTION("--- Firmware ------", 0xFFDAFF7F),
+void picofly_fw_update_menu(void *param)
+{
+	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_con_setpos(0, 0);
+
+	gfx_printf("Picofly Firmware Update\n\n");
+	gfx_printf("Place update.bin in the root of the SD card.\n\n");
+
+	if (picofly_update_fw())
+		gfx_printf("\n%kFirmware update FAILED.\n%k", 0xFFFF0000, 0xFFCCCCCC);
+	else
+		gfx_printf("\n%kFirmware update complete.\n%k", 0xFF00FF00, 0xFFCCCCCC);
+	    gfx_printf("Reboot the console to complete the firmware\nupdate.\n");
+
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+void picofly_fw_rollback_menu(void *param)
+{
+	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_con_setpos(0, 0);
+
+	gfx_printf("Picofly Firmware Rollback\n\n");
+	gfx_printf("This will instruct the picofly to revert\n");
+	gfx_printf("to its previous firmware on next boot.\n\n");
+	gfx_printf("Press Power to continue or VOL to cancel...\n");
+
+	msleep(500);
+	u32 btn = btn_wait();
+	if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
+	{
+		gfx_printf("Cancelled.\n");
+		goto out;
+	}
+
+	gfx_printf("\n");
+	if (picofly_rollback_fw())
+		gfx_printf("%kRollback command FAILED.\n%k", 0xFFFF0000, 0xFFCCCCCC);
+	else
+		gfx_printf("%kRollback command sent.\n%k", 0xFF00FF00, 0xFFCCCCCC);
+
+out:
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+void picofly_train_reset_menu(void *param)
+{
+	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_con_setpos(0, 0);
+
+	gfx_printf("Picofly Training Data Reset\n\n");
+	gfx_printf("This will clear stored glitch training data.\n");
+	gfx_printf("The modchip will retrain on the next boot.\n\n");
+	gfx_printf("Press Power to continue or VOL to cancel...\n");
+
+	msleep(500);
+	u32 btn = btn_wait();
+	if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
+	{
+		gfx_printf("Cancelled.\n");
+		goto out;
+	}
+
+	gfx_printf("\n");
+	if (picofly_reset_train_data())
+		gfx_printf("%kTraining reset FAILED.\n%k", 0xFFFF0000, 0xFFCCCCCC);
+	else
+		gfx_printf("%kTraining data reset successfully.\n%k", 0xFF00FF00, 0xFFCCCCCC);
+
+out:
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+void picofly_fw_info_menu(void *param)
+{
+	gfx_clear_partial_grey(0x1B, 0, 1256);
+	gfx_con_setpos(0, 0);
+
+	gfx_printf("Picofly Firmware Info\n\n");
+
+	/* the descriptor block is written by the modchip to BOOT0 block 0x1FFF. */
+	struct picofly_fw_info {
+		u32 signature;
+		u32 fw_major;
+		u32 fw_minor;
+		u32 sdloader_hash;
+		u32 firmware_hash;
+		u32 fuse_count;
+	};
+
+	gfx_printf("Initialising eMMC...\n");
+	emmc_initialize(false);
+	sdmmc_storage_set_mmc_partition(&emmc_storage, EMMC_BOOT0);
+
+	u8 buf[512];
+	memset(buf, 0, sizeof(buf));
+
+	if (!sdmmc_storage_read(&emmc_storage, 0x1FFF, 1, buf))
+	{
+		gfx_printf("%kFailed to read descriptor block!\n%k", 0xFFFF0000, 0xFFCCCCCC);
+		goto out;
+	}
+
+	struct picofly_fw_info *fwi = (struct picofly_fw_info *)buf;
+
+	if (fwi->signature != 0x9cabe959U)
+	{
+		gfx_printf("%kNo valid picofly descriptor found.\n%k", 0xFFFF0000, 0xFFCCCCCC);
+		gfx_printf("Signature: 0x%08X (expected 0x9cabe959)\n", fwi->signature);
+		gfx_printf("\nThe modchip may not have booted yet,\nor this is not a picofly modchip.\n");
+		goto out;
+	}
+
+	gfx_printf("%kDescriptor found!\n\n%k", 0xFF00FF00, 0xFFCCCCCC);
+	gfx_printf("Firmware version : %d.%d\n", fwi->fw_major, fwi->fw_minor);
+	gfx_printf("Firmware CRC     : 0x%08X\n", fwi->firmware_hash);
+	gfx_printf("SD loader CRC    : 0x%08X\n", fwi->sdloader_hash);
+	gfx_printf("Fuse count       : %d\n", fwi->fuse_count);
+
+out:
+	sdmmc_storage_end(&emmc_storage);
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+void picofly_sdloader_backup_menu(void *param)
+{
+    gfx_clear_partial_grey(0x1B, 0, 1256);
+    gfx_con_setpos(0, 0);
+
+    gfx_printf("Picofly SD Loader Backup\n\n");
+    gfx_printf("Saves sdloader to sd:/picofly_sdloader.bin\n\n");
+
+    int res = picofly_backup_sdloader();
+    if (!res)
+        gfx_printf("%kSD loader saved to sd:/picofly_sdloader.bin\n%k", 0xFF00FF00, 0xFFCCCCCC);
+    else
+        gfx_printf("%kBackup FAILED (err %d).\n%k", 0xFFFF0000, res, 0xFFCCCCCC);
+
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+void picofly_sdloader_restore_menu(void *param)
+{
+    gfx_clear_partial_grey(0x1B, 0, 1256);
+    gfx_con_setpos(0, 0);
+
+    gfx_printf("Picofly SD Loader Restore\n\n");
+    gfx_printf("Restores sdloader from\nsd:/picofly_sdloader.bin\n\n");
+    gfx_printf("Press Power to continue or VOL to cancel...\n");
+
+    msleep(500);
+    u32 btn = btn_wait();
+    if (btn & (BTN_VOL_UP | BTN_VOL_DOWN))
+    {
+        gfx_printf("Cancelled.\n");
+        gfx_printf("\nPress any key...\n");
+		msleep(500);
+		btn_wait();
+        return;
+    }
+
+    gfx_printf("\n");
+    int res = picofly_restore_sdloader();
+    if (!res)
+        gfx_printf("%kSD loader restored successfully.\n%k", 0xFF00FF00, 0xFFCCCCCC);
+    else if (res == 1)
+        gfx_printf("%kFailed: sd:/picofly_sdloader.bin not found.\n%k", 0xFFFF0000, 0xFFCCCCCC);
+    else if (res == 2)
+        gfx_printf("%kFailed: file size mismatch\n(expected %d bytes).\n%k", 0xFFFF0000, PICOFLY_SDLOADER_SIZE, 0xFFCCCCCC);
+    else
+        gfx_printf("%kRestore FAILED (err %d).\n%k", 0xFFFF0000, res, 0xFFCCCCCC);
+
+	gfx_printf("\nPress any key...\n");
+	msleep(500);
+	btn_wait();
+}
+
+/*---------------------------------------------------------------------------*/
+
+power_state_t STATE_POWER_OFF = POWER_OFF_RESET;
+
+/* --- HWFLY sub menu ---*/
+ment_t ment_hwfly[] = {
+	MDEF_CAPTION("--- Firmware -------------------------------", 0xFFDAFF7F),
 	MDEF_HANDLER("Update", fw_update),
 	MDEF_HANDLER("Backup", fw_dump),
-	MDEF_CAPTION("--- SD Loader -----", 0xFFDAFF7F),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- SD Loader ------------------------------", 0xFFDAFF7F),
 	MDEF_HANDLER("Update", sdloader_update),
 	MDEF_HANDLER("Backup", sdloader_dump),
-	MDEF_CAPTION("--- Train data ----", 0xFFDAFF7F),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Train data -----------------------------", 0xFFDAFF7F),
 	MDEF_HANDLER("Show stored data", train_data_show),
 	MDEF_HANDLER("Backup", train_data_backup),
 	MDEF_HANDLER("Restore", train_data_restore),
 	MDEF_HANDLER("Reset", train_data_reset),
-	MDEF_CAPTION("--- Misc. ---------", 0xFFDAFF7F),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Misc. ----------------------------------", 0xFFDAFF7F),
 	MDEF_HANDLER("Glitch Session Info", session_info),
 	MDEF_HANDLER("Enter Deep Sleep", deep_sleep),
-	MDEF_CAPTION("-------------------", 0xFFDAFF7F),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Return ---------------------------------", 0xFFDAFF7F),
+	MDEF_BACK(),
+	MDEF_END()
+};
+
+menu_t menu_hwfly = { ment_hwfly, "HWFLY Options", 0, 0 };
+
+/* --- Picofly sub menu ---*/
+ment_t ment_picofly[] = {
+	MDEF_CAPTION("--- Firmware -------------------------------", 0xFF7FFFFF),
+	MDEF_HANDLER("Info", picofly_fw_info_menu),
+	MDEF_HANDLER("Update (update.bin)", picofly_fw_update_menu),
+	MDEF_HANDLER("Rollback", picofly_fw_rollback_menu),
+	MDEF_CAPTION("", 0xFF5E95BC),
+    MDEF_CAPTION("--- SD Loader ------------------------------", 0xFF7FFFFF),
+    MDEF_HANDLER("Backup", picofly_sdloader_backup_menu),
+    MDEF_HANDLER("Restore", picofly_sdloader_restore_menu),
+   	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Train data -----------------------------", 0xFF7FFFFF),
+	MDEF_HANDLER("Reset", picofly_train_reset_menu),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Return ---------------------------------", 0xFF7FFFFF),
+	MDEF_BACK(),
+	MDEF_END()
+};
+
+menu_t menu_picofly = { ment_picofly, "Picofly Options", 0, 0 };
+
+/* --- top level menu --- */
+ment_t ment_top[] = {
+	MDEF_CAPTION("--- Picofly --------------------------------", 0xFF7FFFFF),
+	MDEF_MENU("Picofly Options", &menu_picofly),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- HWFLY ----------------------------------", 0xFFDAFF7F),
+	MDEF_MENU("HWFLY Options", &menu_hwfly),
+	MDEF_CAPTION("", 0xFF5E95BC),
+	MDEF_CAPTION("--- Misc Options ---------------------------", 0xFF7FFFFF),
 	MDEF_HANDLER("Back to hekate", hekate_launch),
 	MDEF_HANDLER_EX("Power off", &STATE_POWER_OFF, power_set_state_ex),
 	MDEF_END()
 };
 
-menu_t menu_top = { ment_top, "HWFLY Toolbox v1.1.1", 0, 0 };
+menu_t menu_top = { ment_top, "Modchip Toolbox " TOOLBOX_VERSION, 0, 0 };
 
 extern void pivot_stack(u32 stack_top);
 

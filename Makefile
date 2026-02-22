@@ -12,7 +12,7 @@ include ./Versions.inc
 
 ################################################################################
 
-TARGET := hwfly_toolbox
+TARGET := modchip_toolbox
 BUILDDIR := build
 OUTPUTDIR := output
 SOURCEDIR = toolbox
@@ -20,12 +20,13 @@ BDKDIR := bdk
 BDKINC := -I./$(BDKDIR)
 VPATH = $(dir ./$(SOURCEDIR)/) $(dir $(wildcard ./$(SOURCEDIR)/*/)) $(dir $(wildcard ./$(SOURCEDIR)/*/*/))
 VPATH += $(dir $(wildcard ./$(BDKDIR)/)) $(dir $(wildcard ./$(BDKDIR)/*/)) $(dir $(wildcard ./$(BDKDIR)/*/*/))
+VERSION := v1.0.0
 
 # Main and graphics.
 OBJS = $(addprefix $(BUILDDIR)/$(TARGET)/, \
 	start.o exception_handlers.o \
 	main.o heap.o \
-	gfx.o tui.o hwfly.o \
+	gfx.o tui.o hwfly.o picofly.o \
 )
 
 # Hardware.
@@ -63,6 +64,7 @@ CUSTOMDEFINES += -DNYX_VER_MJ=$(NYXVERSION_MAJOR) -DNYX_VER_MN=$(NYXVERSION_MINO
 # BDK defines.
 CUSTOMDEFINES += -DBDK_EMUMMC_ENABLE
 CUSTOMDEFINES += -DGFX_INC=$(GFX_INC) -DFFCFG_INC=$(FFCFG_INC)
+CUSTOMDEFINES += -DTOOLBOX_VERSION=\"$(VERSION)\"
 
 #CUSTOMDEFINES += -DDEBUG
 

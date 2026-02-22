@@ -19,6 +19,7 @@
 
 #include "tui.h"
 #include "../config.h"
+#include <string.h>
 
 extern hekate_config h_cfg;
 
@@ -144,10 +145,15 @@ void *tui_do_menu(menu_t *menu)
 		gfx_putc('\n');
 
 		// Indicate that functionality is only available if modchip is powered on
-		gfx_con_setpos(0, 350);
-		gfx_printf("  %kEnsure modchip is awake:\n", 0xFF5E95BC);
-		gfx_printf("  hold %kVOL+%k during power on.\n", 0xFFC0C0C0, 0xFF5E95BC);
-		gfx_printf("  The %kgreen%k LED should be on and static.\n", 0xFF00FF00, 0xFF5E95BC);
+		if (!strcmp(menu->caption, "Modchip Toolbox " TOOLBOX_VERSION))
+		{
+			gfx_con_setpos(0, 205);
+			gfx_printf("  %kFor HWFLY modchips, ensure the modchip\n", 0xFF5E95BC);
+			gfx_printf("  is awake:\n", 0xFF5E95BC);
+			gfx_printf("  \n");
+			gfx_printf("  Hold %kVOL+%k during power on.\n", 0xFFC0C0C0, 0xFF5E95BC);
+			gfx_printf("  The %kgreen%k LED should be on and static.\n", 0xFF00FF00, 0xFF5E95BC);
+		}
 
 		// Print errors, help and battery status.
 		gfx_con_setpos(0, 1191);
