@@ -331,6 +331,7 @@ int picofly_restore_sdloader(void)
     sd_mount();
     u32 size = 0;
     u8 *buf = sd_file_read("picofly_sdloader.bin", &size);
+    sd_end();
 
     if (!buf)
         return 1;

@@ -19,7 +19,7 @@
 #define _PICOFLY_H_
 
 #define PICOFLY_SDLOADER_SECTOR     0x1F80
-#define PICOFLY_SDLOADER_SIZE       30512
+#define PICOFLY_SDLOADER_SIZE       65536
 
 #include <utils/types.h>
 
