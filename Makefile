@@ -20,7 +20,7 @@ BDKDIR := bdk
 BDKINC := -I./$(BDKDIR)
 VPATH = $(dir ./$(SOURCEDIR)/) $(dir $(wildcard ./$(SOURCEDIR)/*/)) $(dir $(wildcard ./$(SOURCEDIR)/*/*/))
 VPATH += $(dir $(wildcard ./$(BDKDIR)/)) $(dir $(wildcard ./$(BDKDIR)/*/)) $(dir $(wildcard ./$(BDKDIR)/*/*/))
-VERSION := v1.0.1
+VERSION := v1.0.2
 
 # Main and graphics.
 OBJS = $(addprefix $(BUILDDIR)/$(TARGET)/, \

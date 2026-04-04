@@ -672,6 +672,7 @@ void picofly_fw_info_menu(void *param)
 		u32 sdloader_hash;
 		u32 firmware_hash;
 		u32 fuse_count;
+	    u32 bct_sub_fingerprint;
 	};
 
 	gfx_printf("Initialising eMMC...\n");
@@ -698,11 +699,14 @@ void picofly_fw_info_menu(void *param)
 	}
 
 	gfx_printf("%kDescriptor found!\n\n%k", 0xFF00FF00, 0xFFCCCCCC);
-	gfx_printf("Firmware version : %d.%d\n", fwi->fw_major, fwi->fw_minor);
-	gfx_printf("Firmware CRC     : 0x%08X\n", fwi->firmware_hash);
-	gfx_printf("SD loader CRC    : 0x%08X\n", fwi->sdloader_hash);
-	gfx_printf("Fuse count       : %d\n", fwi->fuse_count);
-
+	gfx_printf("Firmware version    : %d.%d\n", fwi->fw_major, fwi->fw_minor);
+	gfx_printf("Firmware CRC        : 0x%08X\n", fwi->firmware_hash);
+	gfx_printf("SD loader CRC       : 0x%08X\n", fwi->sdloader_hash);
+	gfx_printf("Fuse count          : %d\n", fwi->fuse_count);
+	u32 fp = fwi->bct_sub_fingerprint;
+	u32 fp_be = ((fp & 0xFF) << 24) | (((fp >> 8) & 0xFF) << 16) | (((fp >> 16) & 0xFF) << 8) | ((fp >> 24) & 0xFF);
+	gfx_printf("BCT Sub fingerprint : 0x%08X\n", fp_be);
+	
 out:
 	sdmmc_storage_end(&emmc_storage);
 	gfx_printf("\nPress any key...\n");
