@@ -705,24 +705,6 @@ void picofly_fw_info_menu(void *param)
 	gfx_printf("Fuse count          : %d\n", fwi->fuse_count);
 	u32 fp = fwi->bct_sub_fingerprint;
 	gfx_printf("BCT Sub fingerprint : 0x%08X\n", fp);
-
-	// read pubkey from BctNormalSub 0x040
-	u8 bct_buf[512];
-	if (sdmmc_storage_read(&emmc_storage, 0x040, 1, bct_buf))
-	{
-		u32 pubkey_bytes = *(u32 *)(bct_buf + 0x10);
-		gfx_printf("Pubkey first bytes  : 0x%08X", pubkey_bytes);
-		if (pubkey_bytes == fp)
-			gfx_printf(" %k(matches descriptor)%k\n", 0xFF00FF00, 0xFFCCCCCC);
-		else if (fp == 0)
-			gfx_printf(" %k(descriptor not yet written)%k\n", 0xFFFFAA00, 0xFFCCCCCC);
-		else
-			gfx_printf(" %k(mismatched, BCT updated since last boot?)%k\n", 0xFFFF0000, 0xFFCCCCCC);
-	}
-	else
-	{
-		gfx_printf("Pubkey first bytes  : %k(read failed)%k\n", 0xFFFF0000, 0xFFCCCCCC);
-	}
 	
 out:
 	sdmmc_storage_end(&emmc_storage);
